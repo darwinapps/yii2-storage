@@ -37,8 +37,9 @@ class FileSystem extends BaseAdapter
             while (!feof($stream)) {
                 echo fread($stream, 8192);
             }
-            fclose($stream);
+            return fclose($stream);
         }
+        return false;
     }
 
 }

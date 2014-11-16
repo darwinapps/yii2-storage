@@ -10,7 +10,7 @@ class DefaultController extends \yii\web\Controller
         if ($type)
             header("Content-Type: " . $type);
 
-        $this->module()->get('storage')->download($path);
+        $this->module->get('storage')->download($path);
         \Yii::$app->end();
     }
 }

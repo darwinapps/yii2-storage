@@ -13,7 +13,7 @@ use yii\base\BootstrapInterface;
 class Module extends \yii\base\Module implements BootstrapInterface
 {
 
-    public $controllerNamespace = 'darwinapps\storage';
+    public $controllerNamespace = 'darwinapps\storage\controllers';
 
     public $storageConfig = [];
 

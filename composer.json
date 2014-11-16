@@ -1,0 +1,28 @@
+{
+    "name": "darwinapps/yii2-storage",
+    "description": "The Storate extension for the Yii framework",
+    "keywords": ["yii2", "storage"],
+    "type": "yii2-extension",
+    "license": "BSD-3-Clause",
+    "support": {
+        "issues": "https://github.com/darwinapps/yii2-storage/issues",
+        "source": "https://github.com/darwinapps/yii2-storage"
+    },
+    "authors": [
+        {
+            "name": "Aleksandr Guidrevitch",
+            "email": "darwinapps@gmail.com"
+        }
+    ],
+    "require": {
+        "yiisoft/yii2": "*"
+    },
+    "require-dev": {
+        "codeception/codeception": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "darwinapps\\storage\\": ""
+        }
+    }
+}

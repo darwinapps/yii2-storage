@@ -14,30 +14,13 @@ class UploadedFile extends \yii\web\UploadedFile
     }
 }
 
-class StorageTest extends \Codeception\TestCase\Test
+class StorageTest extends \yii\codeception\TestCase
 {
-    public $uploadPath = '@tests/_tmp';
-
-    public function setUp()
-    {
-        parent::setUp();
-        FileHelper::createDirectory(Yii::getAlias($this->uploadPath));
-    }
-
-    public function tearDown()
-    {
-        FileHelper::removeDirectory(Yii::getAlias($this->uploadPath));
-        parent::tearDown();
-    }
+    public $appConfig = '@tests/unit/_config.php';
 
     public function test()
     {
-        $storage = new Module('storage', 'storage', [
-            'storage' => [
-                'uploadPath' => $this->uploadPath
-            ]
-        ]);
-        //var_dump($storage); exit;
+        $storage = \Yii::$app->getModule('storage');
         $filename = Yii::getAlias('@tests/_data/nature-q-c-640-480-4.jpg');
         $size = filesize($filename);
         $file = new UploadedFile([

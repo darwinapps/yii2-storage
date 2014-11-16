@@ -15,7 +15,7 @@ class Module extends \yii\base\Module implements BootstrapInterface
 
     public $controllerNamespace = 'darwinapps\storage';
 
-    public $storage = [];
+    public $adapter = [];
 
     /* @var StorageInterface */
     protected $_adapter;
@@ -24,9 +24,9 @@ class Module extends \yii\base\Module implements BootstrapInterface
     {
         parent::init();
 
-        $this->storage = empty($this->storage)
-            ? $this->defaultStorage()
-            : array_merge($this->defaultStorage(), $this->storage);
+        $this->adapter = empty($this->adapter)
+            ? $this->defaultAdapter()
+            : array_merge($this->defaultAdapter(), $this->adapter);
 
     }
 
@@ -37,10 +37,10 @@ class Module extends \yii\base\Module implements BootstrapInterface
     {
         return $this->_adapter
             ? $this->_adapter
-            : $this->_adapter = \Yii::createObject($this->storage);
+            : $this->_adapter = \Yii::createObject($this->adapter);
     }
 
-    public function defaultStorage()
+    protected function defaultAdapter()
     {
         return [
             'class' => 'darwinapps\storage\adapters\FileSystem',
@@ -72,7 +72,8 @@ class Module extends \yii\base\Module implements BootstrapInterface
         return $this->getAdapter()->stream($file->path);
     }
 
-    public function bootstrap($app) {
+    public function bootstrap($app)
+    {
     }
 
 }

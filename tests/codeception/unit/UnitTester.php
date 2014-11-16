@@ -20,7 +20,7 @@
  * @method void comment($description)
  * @method void haveFriend($name, $actorClass = null)
 */
-class TestGuy extends \Codeception\Actor
+class UnitTester extends \Codeception\Actor
 {
    
 }

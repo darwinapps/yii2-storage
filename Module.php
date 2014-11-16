@@ -15,65 +15,48 @@ class Module extends \yii\base\Module implements BootstrapInterface
 
     public $controllerNamespace = 'darwinapps\storage';
 
-    public $adapter = [];
-
-    /* @var StorageInterface */
-    protected $_adapter;
+    public $storageConfig = [];
 
     public function init()
     {
         parent::init();
 
-        $this->adapter = empty($this->adapter)
-            ? $this->defaultAdapter()
-            : array_merge($this->defaultAdapter(), $this->adapter);
+        $this->storageConfig = empty($this->storageConfig)
+            ? $this->defaultStorageConfig()
+            : array_merge($this->defaultStorageConfig(), $this->storageConfig);
 
     }
 
-    /**
-     * @return StorageInterface|object
-     */
-    protected function getAdapter()
-    {
-        return $this->_adapter
-            ? $this->_adapter
-            : $this->_adapter = \Yii::createObject($this->adapter);
-    }
-
-    protected function defaultAdapter()
+    protected function defaultStorageConfig()
     {
         return [
-            'class' => 'darwinapps\storage\adapters\FileSystem',
-            'uploadPath' => '@runtime/uploads'
+            'class' => 'darwinapps\storage\components\Storage'
         ];
     }
 
     public function store(UploadedFile $file)
     {
-        $adapter = $this->getAdapter();
-        if ($path = $adapter->put($file)) {
-            return new StoredFile([
-                'name' => $file->name,
-                'size' => $file->size,
-                'type' => $file->type,
-                'path' => $path,
-            ]);
-        }
-        return false;
+        return $this->get('storage')->store($file);
     }
 
-    public function download(StoredFile $file)
+    public function download($path)
     {
-        header('Content-Disposition: attachment; filename="' . $file->name . '"');
-        if ($file->type)
-            header("Content-Type: " . $file->type);
-        if ($file->size)
-            header("Content-Length: " . $file->size);
-        return $this->getAdapter()->stream($file->path);
+        return $this->get('storage')->download($path);
     }
 
     public function bootstrap($app)
     {
+        if ($app instanceof \yii\web\Application) {
+            $app->getUrlManager()->addRules([
+                [
+                    'verb' => 'GET',
+                    'pattern' => $this->id,
+                    'encodeParams' => true,
+                    'route' => $this->id . '/default/view'
+                ],
+            ], false);
+        }
+        $this->setComponents(['storage' => $this->storageConfig]);
     }
 
 }

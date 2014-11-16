@@ -4,7 +4,8 @@ namespace darwinapps\storage\adapters;
 
 use yii\base\NotSupportedException;
 
-class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\StorageInterface {
+class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\interfaces\StorageInterface
+{
 
     /**
      * Generates specified number of random bytes.
@@ -56,11 +57,13 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\Sto
         return $unique_id;
     }
 
-    public function put(\yii\web\UploadedFile $file) {
+    public function put(\yii\web\UploadedFile $file)
+    {
         throw new NotSupportedException();
     }
 
-    public function stream($path, $mode = 'r') {
+    public function stream($path, $mode = 'r')
+    {
         throw new NotSupportedException();
     }
 }

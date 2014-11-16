@@ -36,20 +36,17 @@ class StorageTest extends \yii\codeception\TestCase
             'name' => 'nature-q-c-640-480-4.jpg',
             'size' => $size,
             'type' => 'image/jpeg',
-        ], (array)$storedfile);
-        $this->assertNotEmpty($storedfile->path);
+        ], $storedfile);
+        $this->assertNotEmpty($storedfile['path']);
 
         ob_start();
-        $storage->download($storedfile);
+        $storage->download($storedfile['path']);
         $file = ob_get_flush();
         $this->assertEquals($size, strlen($file));
     }
 
     protected function assertArrayContainsArray($needle, $haystack)
     {
-        if ($haystack instanceof \Codeception\Maybe) {
-            $haystack = $haystack->__value(); // or else array_has_key fails for keys with null values
-        }
 
         foreach ($needle as $key => $val) {
             $this->assertArrayHasKey($key, $haystack);

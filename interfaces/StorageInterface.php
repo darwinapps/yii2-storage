@@ -1,6 +1,6 @@
 <?php
 
-namespace darwinapps\storage;
+namespace darwinapps\storage\interfaces;
 
 interface StorageInterface
 {

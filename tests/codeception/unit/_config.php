@@ -7,8 +7,10 @@ return [
     'modules' => [
         'storage' => [
             'class' => 'darwinapps\storage\Module',
-            'adapter' => [
-                'uploadPath' => '@tests/_tmp'
+            'storageConfig' => [
+                'adapter' => [
+                    'uploadPath' => '@tests/_tmp'
+                ]
             ]
         ]
     ]

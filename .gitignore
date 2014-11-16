@@ -1,5 +1,5 @@
 .idea/
-tests/_tmp/
+tests/codeception/_tmp/
 vendor/
 
 composer.lock

@@ -12,9 +12,9 @@ interface StorageInterface
     public function put(\yii\web\UploadedFile $file);
 
     /**
-     * Streams file from the storage
-     * @param \yii\web\UploadedFile $file
-     * @return string the converted asset file path, relative to $basePath.
+     * Downloads file from the storage
+     * @param string $path
+     * @param string $filename
      */
-    public function stream($path);
+    public function download($path, $filename);
 }

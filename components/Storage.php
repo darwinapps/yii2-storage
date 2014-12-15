@@ -17,13 +17,13 @@ class Storage extends \yii\base\Component
 
         $this->adapter = empty($this->adapter)
             ? $this->defaultAdapter()
-            : $this->adapter['class']
+            : ((isset($this->adapter['class']) && $this->adapter['class'] != 'darwinapps\storage\adapters\FileSystem')
                 ? $this->adapter
-                : array_merge($this->defaultAdapter(), $this->adapter);
+                : array_merge($this->defaultAdapter(), $this->adapter));
     }
 
     /**
-     * @return StorageInterface|object
+     * @return \darwinapps\storage\interfaces\StorageInterface|object
      */
     protected function getAdapter()
     {
@@ -48,14 +48,15 @@ class Storage extends \yii\base\Component
                 'size' => $file->size,
                 'type' => $file->type,
                 'path' => $path,
+                'text' => $this->getAdapter()->getText($path)
             ];
         }
         return false;
     }
 
-    public function download($path)
+    public function download($path, $filename)
     {
-        return $this->getAdapter()->stream($path);
+        return $this->getAdapter()->download($path, $filename);
     }
 
 }

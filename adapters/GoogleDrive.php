@@ -6,24 +6,29 @@ use Yii;
 use yii\helpers\FileHelper;
 use yii\base\InvalidConfigException;
 
-class GoogleDrive extends BaseAdapter {
+class GoogleDrive extends BaseAdapter
+{
 
     static $SCOPE = ['https://www.googleapis.com/auth/drive'];
+    static $CONVERT_MAP = [
+        'doc' => 'docx',
+        'xls' => 'xlsx',
+        'ods' => 'xlsx',
+    ];
 
     public $serviceAccountEmail;
     public $serviceAccountPKCS12FilePath;
     public $userEmail;
     public $serviceDomain;
 
-    protected $_auth;
-    protected $_client;
-    protected $_service;
+    private $_service;
 
-    public function init() {
-        if (!$this->serviceAccountPKCS12FilePath) 
+    public function init()
+    {
+        if (!$this->serviceAccountPKCS12FilePath)
             throw new InvalidConfigException("Google service key path not set");
 
-        if (!$this->serviceAccountEmail) 
+        if (!$this->serviceAccountEmail)
             throw new InvalidConfigException("Google service email not set");
 
         $keyPath = Yii::getAlias($this->serviceAccountPKCS12FilePath);
@@ -31,29 +36,44 @@ class GoogleDrive extends BaseAdapter {
         if (!file_exists($keyPath))
             throw new InvalidConfigException("Google key not found");
 
+    }
+
+    public function buildService()
+    {
+        $keyPath = Yii::getAlias($this->serviceAccountPKCS12FilePath);
+
+        if (!file_exists($keyPath))
+            throw new InvalidConfigException("Google key not found");
+
         $key = file_get_contents($keyPath);
 
-        $this->_auth = new \Google_Auth_AssertionCredentials(
+        $auth = new \Google_Auth_AssertionCredentials(
             $this->serviceAccountEmail,
             static::$SCOPE,
             $key);
 
-        $this->_client = new \Google_Client();
+        $client = new \Google_Client();
 
         if ($this->userEmail)
-            $this->_auth->sub = $this->userEmail;
+            $auth->sub = $this->userEmail;
 
-        $this->_client->setAssertionCredentials($this->_auth);
+        $client->setAssertionCredentials($auth);
 
-        if ($this->_client->getAuth()->isAccessTokenExpired()) {
-            $this->_client->getAuth()->refreshTokenWithAssertion();
+        if ($client->getAuth()->isAccessTokenExpired()) {
+            $client->getAuth()->refreshTokenWithAssertion();
         }
 
-        $this->_service = new \Google_Service_Drive($this->_client);
+        return new \Google_Service_Drive($client);
     }
 
+    /**
+     * @return \Google_Service_Drive
+     */
     public function getService()
     {
+        if (!$this->_service) {
+            $this->_service = $this->buildService();
+        }
         return $this->_service;
     }
 
@@ -64,26 +84,42 @@ class GoogleDrive extends BaseAdapter {
     public function put(\yii\web\UploadedFile $file)
     {
         $driveFile = new \Google_Service_Drive_DriveFile([
-            'title' => $file->baseName
+            'title' => $file->name
         ]);
 
-        $result = $this->getService()->files->insert($driveFile, array(
-          'data' => file_get_contents($file->tempName),
-          'uploadType' => 'media',
-          'convert' => true,
-        ));
+        $result = $this->getService()->files->insert($driveFile, [
+            'data' => file_get_contents($file->tempName),
+            'uploadType' => 'media',
+            'mimeType' => FileHelper::getMimeTypeByExtension($file->name) ? : $file->type
+        ]);
 
         return $result['id'];
     }
 
-    public function stream($path, $mode = 'r')
+    public function getText($fileId)
+    {
+        $result = $this->getService()->files->copy($fileId, new \Google_Service_Drive_DriveFile(), ['convert' => true]);
+        $exportLinks = $result->getExportLinks();
+        if ($exportLinks['text/plain']) {
+            $request = new \Google_Http_Request($exportLinks['text/plain'], 'GET', null, null);
+            $httpRequest = $this->getService()->getClient()->getAuth()->authenticatedRequest($request);
+            if ($request->getResponseHttpCode() == 200) {
+                $this->getService()->files->delete($result['id']);
+                return $httpRequest->getResponseBody();
+            }
+        }
+        $this->getService()->files->delete($result['id']);
+    }
+
+    public function stream($path, $filename)
     {
         $file = $this->getService()->files->get($path);
-        $downloadUrl = $file->getDownloadUrl();
-        if ($downloadUrl) {
-            $request = new Google_HttpRequest($downloadUrl, 'GET', null, null);
-            $httpRequest = Google_Client::$io->authenticatedRequest($request);
-            if ($httpRequest->getResponseHttpCode() == 200) {
+        if ($downloadUrl = $file->getDownloadUrl()) {
+            $request = new \Google_Http_Request($downloadUrl, 'GET', null, null);;
+            $httpRequest = $this->getService()->getClient()->getAuth()->authenticatedRequest($request);
+            if ($request->getResponseHttpCode() == 200) {
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Content-Type:' . $request->getResponseHeader('Content-Type'));
                 echo $httpRequest->getResponseBody();
             } else {
                 // An error occurred.

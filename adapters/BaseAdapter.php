@@ -6,7 +6,6 @@ use yii\base\NotSupportedException;
 
 class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\interfaces\StorageInterface
 {
-
     /**
      * Generates specified number of random bytes.
      * Note that output may not be ASCII.
@@ -62,7 +61,7 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
         throw new NotSupportedException();
     }
 
-    public function stream($path, $mode = 'r')
+    public function download($path, $filename)
     {
         throw new NotSupportedException();
     }

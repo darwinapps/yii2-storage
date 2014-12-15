@@ -39,9 +39,9 @@ class Module extends \yii\base\Module implements BootstrapInterface
         return $this->get('storage')->store($file);
     }
 
-    public function download($path)
+    public function download($path, $filename)
     {
-        return $this->get('storage')->download($path);
+        return $this->get('storage')->download($path, $filename);
     }
 
     public function bootstrap($app)

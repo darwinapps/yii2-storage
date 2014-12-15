@@ -17,6 +17,7 @@
     ],
     "require": {
         "yiisoft/yii2": "*",
+        "symfony/symfony": "2.6.*",
         "google/apiclient": "1.0.*@beta"
     },
     "require-dev": {

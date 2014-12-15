@@ -40,7 +40,7 @@ class StorageTest extends \yii\codeception\TestCase
         $this->assertNotEmpty($storedfile['path']);
 
         ob_start();
-        $storage->download($storedfile['path']);
+        $storage->download($storedfile['path'], $storedfile['name']);
         $file = ob_get_flush();
         $this->assertEquals($size, strlen($file));
     }

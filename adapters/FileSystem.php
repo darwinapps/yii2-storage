@@ -31,9 +31,17 @@ class FileSystem extends BaseAdapter
         }
     }
 
-    public function stream($path, $mode = 'r')
+    public function getText($path)
     {
-        if ($stream = fopen($this->getRealPath($path), $mode)) {
+        return '';
+    }
+
+    public function download($path, $filename)
+    {
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header("Content-Type: " . FileHelper::getMimeTypeByExtension($filename));
+
+        if ($stream = fopen($this->getRealPath($path), 'r')) {
             while (!feof($stream)) {
                 echo fread($stream, 8192);
             }

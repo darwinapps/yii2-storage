@@ -93,7 +93,7 @@ class GoogleDrive extends BaseAdapter
             'mimeType' => FileHelper::getMimeTypeByExtension($file->name) ? : $file->type
         ]);
 
-        return $result['id'];
+        return $result->id;
     }
 
     public function getText($fileId)
@@ -108,7 +108,40 @@ class GoogleDrive extends BaseAdapter
                 return $httpRequest->getResponseBody();
             }
         }
-        $this->getService()->files->delete($result['id']);
+        $this->getService()->files->delete($result->id);
+    }
+
+    public function createFolder($name, $parentId)
+    {
+        $files = $this->getService()->files->listFiles([
+            'q' => "title = '$name' and mimeType = 'application/vnd.google-apps.folder'"
+        ]);
+
+        if (!$files->count()) {
+            $driveFolder = new \Google_Service_Drive_DriveFile([
+                'title' => $name,
+                'mimeType' => 'application/vnd.google-apps.folder'
+            ]);
+            if ($parentId) {
+                $driveFolder->setParents([
+                    new \Google_Service_Drive_ParentReference(['id' => $parentId])
+                ]);
+            }
+            $folder = $this->getService()->files->insert($driveFolder);
+            return $folder->id;
+        } else {
+            return $files->current()->id;
+        }
+    }
+
+    public function move($fileId, $dir)
+    {
+        $parentId = null;
+        foreach (explode("/", $dir) as $name) {
+            $folderId = $this->createFolder($name, $parentId);
+            $parentId = $folderId;
+        }
+        $this->getService()->parents->insert($fileId, new \Google_Service_Drive_ParentReference(['id' => $parentId]));
     }
 
     public function download($path, $filename)

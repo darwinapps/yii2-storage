@@ -40,6 +40,11 @@ class Storage extends \yii\base\Component
         ];
     }
 
+    public function move($path, $destination)
+    {
+        return $this->getAdapter()->move($path, $destination);
+    }
+
     public function store(UploadedFile $file)
     {
         if ($path = $this->getAdapter()->put($file)) {

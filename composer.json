@@ -4,6 +4,7 @@
     "keywords": ["yii2", "storage", "file", "s3"],
     "type": "yii2-extension",
     "license": "BSD-3-Clause",
+    "minimum-stability": "dev",
     "support": {
         "issues": "https://github.com/darwinapps/yii2-storage/issues",
         "source": "https://github.com/darwinapps/yii2-storage"

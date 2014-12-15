@@ -141,7 +141,11 @@ class GoogleDrive extends BaseAdapter
             $folderId = $this->createFolder($name, $parentId);
             $parentId = $folderId;
         }
-        $this->getService()->parents->insert($fileId, new \Google_Service_Drive_ParentReference(['id' => $parentId]));
+        if ($parentId) {
+            $this->getService()->parents->insert($fileId, new \Google_Service_Drive_ParentReference(['id' => $parentId]));
+            return true;
+        }
+        return false;
     }
 
     public function download($path, $filename)

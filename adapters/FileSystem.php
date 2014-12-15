@@ -31,11 +31,6 @@ class FileSystem extends BaseAdapter
         }
     }
 
-    public function getText($path)
-    {
-        return '';
-    }
-
     public function download($path, $filename)
     {
         header('Content-Disposition: attachment; filename="' . $filename . '"');

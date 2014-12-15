@@ -17,8 +17,9 @@ class Storage extends \yii\base\Component
 
         $this->adapter = empty($this->adapter)
             ? $this->defaultAdapter()
-            : array_merge($this->defaultAdapter(), $this->adapter);
-
+            : $this->adapter['class']
+                ? $this->adapter
+                : array_merge($this->defaultAdapter(), $this->adapter);
     }
 
     /**

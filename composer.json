@@ -15,7 +15,8 @@
         }
     ],
     "require": {
-        "yiisoft/yii2": "*"
+        "yiisoft/yii2": "*",
+        "google/apiclient": "1.0.*@beta"
     },
     "require-dev": {
         "yiisoft/yii2-codeception": "*",

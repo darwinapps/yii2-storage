@@ -57,31 +57,35 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
     }
 
     /**
-     * @param string $path
-     * @param string $dir
-     * @return bool
+     * @inheritdoc
      */
-    public function move($path, $dir)
-    {
-        return true;
-    }
-
-    /**
-     * @param $path
-     * @return string
-     */
-    public function getText($path)
-    {
-        return '';
-    }
-
     public function put(\yii\web\UploadedFile $file, $dir = null)
     {
         throw new NotSupportedException();
     }
 
-    public function download($path, $filename)
+    /**
+     * @inheritdoc
+     */
+    public function download($id, $filename)
     {
         throw new NotSupportedException();
     }
+
+    /**
+     * @inheritdoc
+     */
+    public function move($id, $dir)
+    {
+        throw new NotSupportedException();
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getText($id)
+    {
+        throw new NotSupportedException();
+    }
+
 }

@@ -85,10 +85,10 @@ class GoogleDrive extends BaseAdapter
     public function createDirectoryRecursive($path, $parentId = null)
     {
         foreach (explode("/", $path) as $name) {
-            $dirId = $this->createDirectory($name, $parentId);
-            $parentId = $dirId;
+            $id = $this->createDirectory($name, $parentId);
+            $parentId = $id;
         }
-        return $dirId;
+        return $id;
     }
 
     /**
@@ -115,8 +115,7 @@ class GoogleDrive extends BaseAdapter
                 ]);
             }
 
-            $folder = $this->getService()->files->insert($driveFolder);
-            return $folder->id;
+            return $this->getService()->files->insert($driveFolder)->id;
         } else {
             return $files->current()->id;
         }
@@ -125,13 +124,15 @@ class GoogleDrive extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function move($fileId, $dir)
+    public function move($id, $dir)
     {
         if ($parentId = $this->createDirectoryRecursive($dir)) {
-            foreach ($this->getService()->parents->listParents($fileId) as $parent) {
-                $this->getService()->parents->delete($fileId, $parent->id);
+            foreach ($this->getService()->parents->listParents($id) as $parent) {
+                $this->getService()->parents->delete($id, $parent->id);
             }
-            return $this->getService()->parents->insert($fileId, new \Google_Service_Drive_ParentReference(['id' => $parentId]));
+            if ($this->getService()->parents->insert($id, new \Google_Service_Drive_ParentReference(['id' => $parentId]))) {
+                return $id;
+            }
         }
         return false;
     }
@@ -185,10 +186,9 @@ class GoogleDrive extends BaseAdapter
         return '';
     }
 
-    public function download($path, $filename)
+    public function download($id, $filename)
     {
-        $file = $this->getService()->files->get($path);
-        if ($downloadUrl = $file->getDownloadUrl()) {
+        if (($file = $this->getService()->files->get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
             $response = $this->getService()->getClient()->getAuth()->authenticatedRequest(
                 new \Google_Http_Request($downloadUrl, 'GET', null, null)
             );

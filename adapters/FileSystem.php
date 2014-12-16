@@ -19,10 +19,13 @@ class FileSystem extends BaseAdapter
      * @param \yii\web\UploadedFile $file uploaded file
      * @return string $path
      */
-    public function put(\yii\web\UploadedFile $file)
+    public function put(\yii\web\UploadedFile $file, $dir = null)
     {
         $uuid = $this->generate_unique_id();
-        $key = substr($uuid, 0, 3) . '/' . $uuid . '.' . $file->extension;
+
+        $key = $dir
+            ? $dir . DIRECTORY_SEPARATOR . $uuid . '.' . $file->extension
+            : substr($uuid, 0, 3) . DIRECTORY_SEPARATOR . $uuid . '.' . $file->extension;
 
         $path = $this->getRealPath($key);
         FileHelper::createDirectory(dirname($path), $this->mode);
@@ -41,6 +44,7 @@ class FileSystem extends BaseAdapter
                 echo fread($stream, 8192);
             }
             return fclose($stream);
+            return true;
         }
         return false;
     }

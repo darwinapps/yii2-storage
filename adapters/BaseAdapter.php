@@ -75,7 +75,7 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
         return '';
     }
 
-    public function put(\yii\web\UploadedFile $file)
+    public function put(\yii\web\UploadedFile $file, $dir = null)
     {
         throw new NotSupportedException();
     }

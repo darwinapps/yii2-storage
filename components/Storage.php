@@ -45,9 +45,10 @@ class Storage extends \yii\base\Component
         return $this->getAdapter()->move($path, $destination);
     }
 
-    public function store(UploadedFile $file)
+    public function store(UploadedFile $file, $dir = null)
     {
-        if ($path = $this->getAdapter()->put($file)) {
+        \Yii::info("Storing $file to directory '$dir'");
+        if ($path = $this->getAdapter()->put($file, $dir)) {
             return [
                 'name' => $file->name,
                 'size' => $file->size,

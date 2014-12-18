@@ -40,29 +40,35 @@ class Storage extends \yii\base\Component
         ];
     }
 
+    public function preview($id)
+    {
+        return $this->getAdapter()->preview($id);
+    }
+
+    public function getText($path)
+    {
+        return $this->getAdapter()->getText($path);
+    }
+
     public function move($path, $destination)
     {
         return $this->getAdapter()->move($path, $destination);
     }
 
+    /**
+     * @param UploadedFile $file
+     * @param null $dir
+     * @return \darwinapps\storage\models\File
+     */
     public function store(UploadedFile $file, $dir = null)
     {
         \Yii::info("Storing $file to directory '$dir'");
-        if ($path = $this->getAdapter()->put($file, $dir)) {
-            return [
-                'name' => $file->name,
-                'size' => $file->size,
-                'type' => $file->type,
-                'path' => $path,
-                'text' => $this->getAdapter()->getText($path)
-            ];
-        }
-        return false;
+        return $this->getAdapter()->put($file, $dir);
     }
 
-    public function download($path, $filename)
+    public function download($id)
     {
-        return $this->getAdapter()->download($path, $filename);
+        return $this->getAdapter()->download($id);
     }
 
 }

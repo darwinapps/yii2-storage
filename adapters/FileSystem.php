@@ -4,6 +4,8 @@ namespace darwinapps\storage\adapters;
 
 use Yii;
 use yii\helpers\FileHelper;
+use darwinapps\storage\adapters\filesystem\MetaData;
+use darwinapps\storage\models\File;
 
 class FileSystem extends BaseAdapter
 {
@@ -20,29 +22,66 @@ class FileSystem extends BaseAdapter
      */
     public function put(\yii\web\UploadedFile $file, $dir = null)
     {
-        $uuid = $this->generate_unique_id();
+        $id = $this->generate_unique_id();
 
-        $id = $dir
-            ? $dir . DIRECTORY_SEPARATOR . $uuid . '.' . $file->extension
-            : substr($uuid, 0, 3) . DIRECTORY_SEPARATOR . $uuid . '.' . $file->extension;
+        if (!$dir)
+            $dir = substr($id, 0, 3) . DIRECTORY_SEPARATOR . $id;
 
-        $path = $this->getRealPath($id);
+        $metadata = new MetaData([
+            'id' => $id,
+            'name' => $file->name,
+            'type' => FileHelper::getMimeTypeByExtension($file->name),
+            'size' => $file->size,
+            'path' => $dir,
+        ]);
+
+        $path = $this->getRealPath($metadata->getPath());
         FileHelper::createDirectory(dirname($path), $this->mode);
-        if ($file->saveAs($path)) {
-            return $id;
+
+        if ($file->saveAs($path) && $this->saveMetaData($id, $metadata)) {
+            return new File([
+                'id' => $metadata->id,
+                'name' => $metadata->name,
+                'type' => $metadata->type,
+                'size' => $metadata->size,
+                'has_preview' => $file->type == 'application/pdf',
+                'text' => ''
+            ]);
         }
         return false;
+    }
+
+    protected function getMetaDataFilePath($id)
+    {
+        return $this->getRealPath('metadata' . DIRECTORY_SEPARATOR . substr($id, 0, 3) . DIRECTORY_SEPARATOR . $id);
+    }
+
+    protected function saveMetaData($id, MetaData $metadata)
+    {
+        $file = $this->getMetaDataFilePath($id);
+        if (!file_exists(dirname($file)))
+            FileHelper::createDirectory(dirname($file), $this->mode);
+        return file_put_contents($file, serialize($metadata->toArray())) !== false;
+    }
+
+    protected function loadMetaData($id)
+    {
+        $file = $this->getMetaDataFilePath($id);
+        $metadata = unserialize(file_get_contents($file));
+        return new MetaData($metadata);
     }
 
     /**
      * @inheritdoc
      */
-    public function download($id, $filename)
+    public function download($id)
     {
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header("Content-Type: " . FileHelper::getMimeTypeByExtension($filename));
+        $metadata = $this->loadMetaData($id);
 
-        if ($stream = fopen($this->getRealPath($id), 'r')) {
+        header('Content-Disposition: attachment; filename="' . $metadata->name . '"');
+        header("Content-Type: " . $metadata->type);
+
+        if ($stream = fopen($this->getRealPath($metadata->getPath()), 'r')) {
             while (!feof($stream)) {
                 echo fread($stream, 8192);
             }
@@ -54,14 +93,11 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function move($id, $dir)
+    public function preview($id, $type = 'application / pdf')
     {
-        $filename = pathinfo($id, PATHINFO_FILENAME);
-        $source = $this->getRealPath($id);
-        $target = $this->getRealPath($dir . DIRECTORY_SEPARATOR . $filename);
-        FileHelper::createDirectory(dirname($target), $this->mode);
-        if (rename($source, $target)) {
-            return $dir . DIRECTORY_SEPARATOR . $filename;
+        $metadata = $this->loadMetaData($id);
+        if ($metadata->type == $type) {
+            return $this->download($id);
         }
         return false;
     }
@@ -69,10 +105,15 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function getText($id)
+    public function move($id, $dir)
     {
-        return '';
+        $metadata = $this->loadMetaData($id);
+
+        $source = $this->getRealPath($metadata->getPath());
+        $target = $this->getRealPath($dir . DIRECTORY_SEPARATOR . $id);
+        FileHelper::createDirectory(dirname($target), $this->mode);
+
+        $metadata->path = $dir;
+        return rename($source, $target) && $this->saveMetaData($id, $metadata);
     }
-
-
 }

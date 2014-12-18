@@ -6,15 +6,12 @@ use Yii;
 use yii\helpers\FileHelper;
 use yii\base\InvalidConfigException;
 
+use darwinapps\storage\models\File;
+
 class GoogleDrive extends BaseAdapter
 {
 
     static $SCOPE = ['https://www.googleapis.com/auth/drive'];
-    static $CONVERT_MAP = [
-        'doc' => 'docx',
-        'xls' => 'xlsx',
-        'ods' => 'xlsx',
-    ];
 
     public $serviceAccountEmail;
     public $serviceAccountPKCS12FilePath;
@@ -78,25 +75,25 @@ class GoogleDrive extends BaseAdapter
     }
 
     /**
-     * @param $name
-     * @param null $parentId
-     * @return string $directoryId
+     * @param $path
+     * @param null|\Google_Service_Drive_DriveFile $parent
+     * @return \Google_Service_Drive_DriveFile
      */
-    public function createDirectoryRecursive($path, $parentId = null)
+    public function createDirectoryRecursive($path, $parent = null)
     {
         foreach (explode("/", $path) as $name) {
-            $id = $this->createDirectory($name, $parentId);
-            $parentId = $id;
+            $directory = $this->createDirectory($name, $parent);
+            $parent = $directory;
         }
-        return $id;
+        return $directory;
     }
 
     /**
      * @param $name
-     * @param string|null $parentId
-     * @return string
+     * @param null|\Google_Service_Drive_DriveFile $parent
+     * @return \Google_Service_Drive_DriveFile
      */
-    public function createDirectory($name, $parentId = null)
+    public function createDirectory($name, $parent = null)
     {
         $files = $this->getService()->files->listFiles([
             'q' => "title = '$name' and mimeType = 'application/vnd.google-apps.folder'"
@@ -109,15 +106,13 @@ class GoogleDrive extends BaseAdapter
                 'mimeType' => 'application/vnd.google-apps.folder'
             ]);
 
-            if ($parentId) {
-                $driveFolder->setParents([
-                    new \Google_Service_Drive_ParentReference(['id' => $parentId])
-                ]);
+            if ($parent) {
+                $driveFolder->setParents([$parent]);
             }
 
-            return $this->getService()->files->insert($driveFolder)->id;
+            return $this->getService()->files->insert($driveFolder);
         } else {
-            return $files->current()->id;
+            return $files->current();
         }
     }
 
@@ -126,11 +121,11 @@ class GoogleDrive extends BaseAdapter
      */
     public function move($id, $dir)
     {
-        if ($parentId = $this->createDirectoryRecursive($dir)) {
+        if ($parent = $this->createDirectoryRecursive($dir)) {
             foreach ($this->getService()->parents->listParents($id) as $parent) {
                 $this->getService()->parents->delete($id, $parent->id);
             }
-            if ($this->getService()->parents->insert($id, new \Google_Service_Drive_ParentReference(['id' => $parentId]))) {
+            if ($this->getService()->parents->insert($id, $parent)) {
                 return $id;
             }
         }
@@ -142,10 +137,10 @@ class GoogleDrive extends BaseAdapter
      */
     public function put(\yii\web\UploadedFile $file, $path = null)
     {
-        $parentId = null;
+        $parent = null;
 
         if ($path != null)
-            $parentId = $this->createDirectoryRecursive($path);
+            $parent = $this->createDirectoryRecursive($path);
 
         $mimeType = FileHelper::getMimeTypeByExtension($file->name) ? : $file->type;
         $driveFile = new \Google_Service_Drive_DriveFile([
@@ -153,10 +148,8 @@ class GoogleDrive extends BaseAdapter
             'mimeType' => $mimeType
         ]);
 
-        if ($parentId) {
-            $driveFile->setParents([
-                new \Google_Service_Drive_ParentReference(['id' => $parentId])
-            ]);
+        if ($parent) {
+            $driveFile->setParents([$parent]);
         }
 
         $result = $this->getService()->files->insert($driveFile, [
@@ -164,46 +157,119 @@ class GoogleDrive extends BaseAdapter
             'uploadType' => 'media',
         ]);
 
-        return $result->id;
-    }
-
-    public function getText($fileId)
-    {
-        if (($file = $this->getService()->files->get($fileId)) && !preg_match('/^image/', $file->mimeType)) {
-            \Yii::info("Extracting text from $fileId ({$file->mimeType})");
-            $result = $this->getService()->files->copy($fileId, new \Google_Service_Drive_DriveFile(), ['convert' => true]);
-            $exportLinks = $result->getExportLinks();
-            if ($exportLinks['text/plain']) {
-                $request = new \Google_Http_Request($exportLinks['text/plain'], 'GET', null, null);
-                $httpRequest = $this->getService()->getClient()->getAuth()->authenticatedRequest($request);
-                if ($request->getResponseHttpCode() == 200) {
-                    $this->getService()->files->delete($result->id);
-                    return $httpRequest->getResponseBody();
-                }
-            }
-            $this->getService()->files->delete($result->id);
+        if ($response = $this->convert($result->id, 'text/plain')) {
+            $has_preview = true;
+            $text = preg_replace("/[_\W]+/", " ", $response->getResponseBody());
+        } else {
+            $has_preview = false;
+            $text = '';
         }
-        return '';
+
+        return new File([
+            'id' => $result->id,
+            'name' => $file->name,
+            'size' => $file->size,
+            'type' => $file->type,
+            'has_preview' => $has_preview,
+            'text' => $text,
+        ]);
     }
 
-    public function download($id, $filename)
+    public function download($id)
     {
-        if (($file = $this->getService()->files->get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
-            $response = $this->getService()->getClient()->getAuth()->authenticatedRequest(
-                new \Google_Http_Request($downloadUrl, 'GET', null, null)
-            );
-            if ($response->getResponseHttpCode() == 200) {
-                header('Content-Disposition: attachment;filename="' . $filename . '"');
+        if (($file = $this->get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
+            if ($response = $this->fetch($downloadUrl)) {
+                header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
                 header('Content-Type:' . $response->getResponseHeader('content-type'));
                 echo $response->getResponseBody();
                 return true;
-            } else {
-                // An error occurred.
-                return false;
             }
-        } else {
-            // The file doesn't have any content stored on Drive.
-            return false;
         }
+
+        return false;
+    }
+
+    public function preview($id, $type = 'application/pdf')
+    {
+        if (($file = $this->get($id))) {
+            // returning file itself if matches content-type, no conversion needed
+            // returning file itself if image
+            if (($file->mimeType == 'application/pdf' || preg_match('/^image/', $file->mimeType))) {
+                return $this->download($id);
+            } elseif ($response = $this->convert($id, $type)) {
+                header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
+                header('Content-Type:' . $response->getResponseHeader('content-type'));
+                echo $response->getResponseBody();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param $url
+     * @return \Google_Http_Request
+     */
+    public function fetch($url)
+    {
+        $auth = $this->getService()->getClient()->getAuth();
+        $response = $auth->authenticatedRequest(new \Google_Http_Request($url, 'GET', null, null));
+        if ($response->getResponseHttpCode() == 200) {
+            return $response;
+        }
+    }
+
+    public function get($id)
+    {
+        try {
+            return $this->getService()->files->get($id);
+        } catch (\Exception $e) {
+        }
+    }
+
+    /**
+     * @param string $id
+     * @param string $type
+     * @return \Google_Http_Request|null
+     */
+    public function convert($id, $type = 'application/pdf')
+    {
+        if ($file = $this->get($id)) {
+
+            // images never gets converted
+            if (($type == $file->mimeType) || preg_match('/^image/', $file->mimeType))
+                return;
+
+            // trying to convert
+            try {
+                $preview = $this->getService()->properties->get($id, 'preview');
+            } catch (\Exception $e) {
+            }
+
+            if (
+                (isset($preview)) &&
+                ($file = $this->get($preview->value)) &&
+                ($exportLinks = $file->getExportLinks()) &&
+                ($exportLinks[$type])
+            ) {
+                return $this->fetch($exportLinks[$type]);
+            } else {
+                $target = new \Google_Service_Drive_DriveFile([
+                    'parents' => [$this->createDirectoryRecursive('previews')]
+                ]);
+                $file = $this->getService()->files->copy($id, $target, ['convert' => true]);
+                if (($exportLinks = $file->getExportLinks()) && $exportLinks[$type]) {
+                    $preview = new \Google_Service_Drive_Property([
+                        'key' => 'preview',
+                        'value' => $file->id
+                    ]);
+                    $this->getService()->properties->insert($id, $preview);
+                    return $this->fetch($exportLinks[$type]);
+                } else {
+                    $this->getService()->files->delete($file->id);
+                }
+            }
+        }
+        return;
     }
 }

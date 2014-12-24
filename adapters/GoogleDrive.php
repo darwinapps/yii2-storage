@@ -278,13 +278,13 @@ class GoogleDrive extends BaseAdapter
             ) {
                 return $this->fetch($exportLinks[$type]);
             } else {
-                $file = $this->execute(function () use ($id) {
-                    $target = new \Google_Service_Drive_DriveFile([
-                        'parents' => [$this->createDirectoryRecursive('previews')]
-                    ]);
+                $target = new \Google_Service_Drive_DriveFile([
+                    'parents' => [$this->createDirectoryRecursive('previews')]
+                ]);
+                $file = $this->execute(function () use ($id, $target) {
                     return $this->getService()->files->copy($id, $target, ['convert' => true]);
                 });
-                if (($exportLinks = $file->getExportLinks()) && $exportLinks[$type]) {
+                if ($file && ($exportLinks = $file->getExportLinks()) && $exportLinks[$type]) {
                     $preview = new \Google_Service_Drive_Property([
                         'key' => 'preview',
                         'value' => $file->id

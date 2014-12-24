@@ -25,7 +25,7 @@ class FileSystem extends BaseAdapter
         $id = $this->generate_unique_id();
 
         if (!$dir)
-            $dir = substr($id, 0, 3) . DIRECTORY_SEPARATOR . $id;
+            $dir = substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id;
 
         $metadata = new MetaData([
             'id' => $id,
@@ -53,7 +53,7 @@ class FileSystem extends BaseAdapter
 
     protected function getMetaDataFilePath($id)
     {
-        return $this->getRealPath('metadata' . DIRECTORY_SEPARATOR . substr($id, 0, 3) . DIRECTORY_SEPARATOR . $id);
+        return $this->getRealPath('metadata' . DIRECTORY_SEPARATOR . substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id);
     }
 
     protected function saveMetaData($id, MetaData $metadata)

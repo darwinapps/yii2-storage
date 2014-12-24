@@ -121,13 +121,13 @@ class GoogleDrive extends BaseAdapter
      */
     public function move($id, $dir)
     {
-        if ($parent = $this->createDirectoryRecursive($dir)) {
-            foreach ($this->getService()->parents->listParents($id) as $parent) {
-                $this->getService()->parents->delete($id, $parent->id);
-            }
-            if ($this->getService()->parents->insert($id, $parent)) {
-                return $id;
-            }
+        if (
+            ($parent = $this->createDirectoryRecursive($dir)) &&
+            ($file = $this->getService()->files->get($id))
+        ) {
+            $file->setParents([$parent]);
+            $file = $this->getService()->files->update($id, $file);
+            return $file->id;
         }
         return false;
     }

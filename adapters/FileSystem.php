@@ -93,7 +93,7 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function preview($id, $type = 'application / pdf')
+    public function preview($id, $type = 'application/pdf')
     {
         $metadata = $this->loadMetaData($id);
         if ($metadata->type == $type) {

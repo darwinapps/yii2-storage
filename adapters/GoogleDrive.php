@@ -5,9 +5,9 @@ namespace darwinapps\storage\adapters;
 use Yii;
 use yii\helpers\FileHelper;
 use yii\base\InvalidConfigException;
-use Tebru\Executioner\Executor;
-use Tebru\Executioner\Strategy\Wait\LinearWaitStrategy;
-use Tebru\Executioner\Strategy\Termination\AttemptBoundTerminationStrategy;
+use Tebru\Executioner;
+use Tebru\Executioner\Subscriber\WaitSubscriber;
+use Tebru\Executioner\Strategy\StaticWaitStrategy;
 use darwinapps\storage\models\File;
 
 class GoogleDrive extends BaseAdapter
@@ -37,14 +37,14 @@ class GoogleDrive extends BaseAdapter
         if (!file_exists($keyPath))
             throw new InvalidConfigException("Google key not found");
 
-        //$waitStrategy = new FibonacciWaitStrategy();
-        $this->_executor = new Executor(null, new LinearWaitStrategy(), new AttemptBoundTerminationStrategy($this->retries));
-
+        $waitStrategy = new StaticWaitStrategy();
+        $this->_executor = new Executor();
+        $this->_executor->addSubscriber(new WaitSubscriber($waitStrategy));
     }
 
     public function execute($fn)
     {
-        return $this->_executor->execute($fn);
+        return $this->_executor->execute($this->retries, $fn);
     }
 
     public function buildService()

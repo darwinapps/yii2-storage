@@ -19,7 +19,7 @@
         "yiisoft/yii2": "*",
         "symfony/symfony": "2.6.*",
         "google/apiclient": "1.0.*@beta",
-        "tebru/executioner": "0.1.*"
+        "tebru/executioner": "dev-master"
     },
     "require-dev": {
         "yiisoft/yii2-codeception": "*",

@@ -5,7 +5,7 @@ namespace darwinapps\storage\adapters;
 use Yii;
 use yii\helpers\FileHelper;
 use yii\base\InvalidConfigException;
-use Tebru\Executioner;
+use Tebru\Executioner\Executor;
 use Tebru\Executioner\Subscriber\WaitSubscriber;
 use Tebru\Executioner\Strategy\StaticWaitStrategy;
 use darwinapps\storage\models\File;

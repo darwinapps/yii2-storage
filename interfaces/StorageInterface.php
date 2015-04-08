@@ -20,6 +20,13 @@ interface StorageInterface
     public function download($id);
 
     /**
+     * Get file from the storage
+     * @param string $id
+     * @return bool $success
+     */
+    public function get($id);
+
+    /**
      * Downloads converted version of the file from the storage
      * @param string $id
      * @param string $type

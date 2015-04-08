@@ -38,6 +38,14 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
     /**
      * @inheritdoc
      */
+    public function get($id)
+    {
+        throw new NotSupportedException();
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function preview($id, $type = 'application/pdf')
     {
         throw new NotSupportedException();

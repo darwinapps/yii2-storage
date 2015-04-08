@@ -208,6 +208,17 @@ class GoogleDrive extends BaseAdapter
         return false;
     }
 
+    public function get($id)
+    {
+        if (($file = $this->google_files_get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
+            if ($response = $this->fetch($downloadUrl)) {
+                return $response->getResponseBody();
+            }
+        }
+
+        return false;
+    }
+
     public function preview($id, $type = 'application/pdf')
     {
         if (($file = $this->google_files_get($id))) {

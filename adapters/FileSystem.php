@@ -93,6 +93,19 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
+    public function get($id)
+    {
+        $metadata = $this->loadMetaData($id);
+
+        if ($file = file_get_contents($this->getRealPath($metadata->getPath()))) {
+            return $file;
+        }
+        return false;
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function preview($id, $type = 'application/pdf')
     {
         $metadata = $this->loadMetaData($id);

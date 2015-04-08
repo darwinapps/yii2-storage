@@ -71,4 +71,8 @@ class Storage extends \yii\base\Component
         return $this->getAdapter()->download($id);
     }
 
+    public function get($id)
+    {
+        return $this->getAdapter()->get($id);
+    }
 }

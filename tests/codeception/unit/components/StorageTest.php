@@ -43,6 +43,9 @@ class StorageTest extends \yii\codeception\TestCase
         $storage->download($storedfile['path'], $storedfile['name']);
         $file = ob_get_flush();
         $this->assertEquals($size, strlen($file));
+
+        $storage->get($storedfile['path'], $storedfile['name']);
+
     }
 
     protected function assertArrayContainsArray($needle, $haystack)

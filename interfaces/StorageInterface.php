@@ -15,9 +15,10 @@ interface StorageInterface
     /**
      * Downloads file from the storage
      * @param string $id
+     * @param array $headers
      * @return bool $success
      */
-    public function download($id);
+    public function download($id, $headers = []);
 
     /**
      * Get file from the storage
@@ -30,9 +31,10 @@ interface StorageInterface
      * Downloads converted version of the file from the storage
      * @param string $id
      * @param string $type
+     * @param array $headers
      * @return bool $success
      */
-    public function preview($id, $type = 'application/pdf');
+    public function preview($id, $type = 'application/pdf', $headers = []);
 
     /**
      * @param string $id

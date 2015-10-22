@@ -40,9 +40,9 @@ class Storage extends \yii\base\Component
         ];
     }
 
-    public function preview($id)
+    public function preview($id, $headers = [])
     {
-        return $this->getAdapter()->preview($id);
+        return $this->getAdapter()->preview($id, $headers);
     }
 
     public function getText($path)
@@ -66,9 +66,9 @@ class Storage extends \yii\base\Component
         return $this->getAdapter()->put($file, $dir);
     }
 
-    public function download($id)
+    public function download($id, $headers = [])
     {
-        return $this->getAdapter()->download($id);
+        return $this->getAdapter()->download($id, $headers);
     }
 
     public function get($id)

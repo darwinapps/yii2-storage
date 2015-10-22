@@ -36,6 +36,7 @@ class FileSystem extends BaseAdapter
         ]);
 
         $path = $this->getRealPath($metadata->getPath());
+
         FileHelper::createDirectory(dirname($path), $this->mode);
 
         if ($file->saveAs($path) && $this->saveMetaData($id, $metadata)) {
@@ -74,12 +75,16 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function download($id)
+    public function download($id, $headers = [])
     {
         $metadata = $this->loadMetaData($id);
-
         header('Content-Disposition: attachment; filename="' . $metadata->name . '"');
         header("Content-Type: " . $metadata->type);
+        if (isset($headers) && is_array($headers) && !empty($headers)) {
+            foreach ($headers as $header) {
+                header($header);
+            }
+        }
 
         if ($stream = fopen($this->getRealPath($metadata->getPath()), 'r')) {
             while (!feof($stream)) {
@@ -106,11 +111,11 @@ class FileSystem extends BaseAdapter
     /**
      * @inheritdoc
      */
-    public function preview($id, $type = 'application/pdf')
+    public function preview($id, $type = 'application/pdf', $headers = [])
     {
         $metadata = $this->loadMetaData($id);
         if ($metadata->type == $type) {
-            return $this->download($id);
+            return $this->download($id, $headers);
         }
         return false;
     }

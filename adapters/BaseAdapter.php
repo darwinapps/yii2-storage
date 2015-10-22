@@ -30,7 +30,7 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
     /**
      * @inheritdoc
      */
-    public function download($id)
+    public function download($id, $headers = [])
     {
         throw new NotSupportedException();
     }
@@ -46,7 +46,7 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
     /**
      * @inheritdoc
      */
-    public function preview($id, $type = 'application/pdf')
+    public function preview($id, $type = 'application/pdf', $headers = [])
     {
         throw new NotSupportedException();
     }

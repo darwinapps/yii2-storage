@@ -8,9 +8,10 @@ use yii\base\InvalidConfigException;
 use Tebru\Executioner\Executor;
 use Tebru\Executioner\Subscriber\WaitSubscriber;
 use Tebru\Executioner\Strategy\StaticWaitStrategy;
+use darwinapps\storage\adapters\hybrid\MetaData;
 use darwinapps\storage\models\File;
 
-class GoogleDrive extends BaseAdapter
+class HybridGoogleDrive extends BaseAdapter
 {
 
     static $SCOPE = ['https://www.googleapis.com/auth/drive'];
@@ -23,6 +24,9 @@ class GoogleDrive extends BaseAdapter
 
     private $_service;
     private $_executor;
+
+    public $uploadPath = '@runtime/hybrid';
+    public $mode = 0775;
 
     public function init()
     {
@@ -40,6 +44,72 @@ class GoogleDrive extends BaseAdapter
         $waitStrategy = new StaticWaitStrategy();
         $this->_executor = new Executor();
         $this->_executor->addSubscriber(new WaitSubscriber($waitStrategy));
+    }
+
+    protected function getRealPath($path)
+    {
+        return Yii::getAlias($this->uploadPath) . DIRECTORY_SEPARATOR . $path;
+    }
+
+    protected function getPreviewFilePath($id)
+    {
+        return $this->getRealPath('preview' . DIRECTORY_SEPARATOR . substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id);
+    }
+
+    protected function getOriginFilePath($id)
+    {
+        return $this->getRealPath('origin' . DIRECTORY_SEPARATOR . substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id);
+    }
+
+    protected function saveHybrid($id = false, $type = 'preview', $file_type = '', $file_name = '', $file_content = '', $file_time = 0)
+    {
+        if ($id && $type && $file_type && $file_name && $file_content) {
+            if (!in_array($type, ['preview', 'origin'])) {
+                return false;
+            }
+
+            $metadata = $this->loadMetaData($id) ?: new MetaData();
+
+            $metadata->setAttributes([
+                'id' => $id,
+                $type . '_name' => $file_name,
+                $type . '_type' => $file_type,
+                $type . '_time' => $file_time,
+            ], false);
+
+            $this->saveMetaData($id, $metadata);
+
+            $file = ($type == 'preview') ? $this->getPreviewFilePath($id) : $this->getOriginFilePath($id);
+
+            if (!file_exists(dirname($file))) FileHelper::createDirectory(dirname($file), $this->mode);
+
+            return file_put_contents($file, $file_content) !== false;
+        }
+    }
+
+
+    protected function getMetaDataFilePath($id)
+    {
+        return $this->getRealPath('metadata' . DIRECTORY_SEPARATOR . substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id);
+    }
+
+    protected function saveMetaData($id, MetaData $metadata)
+    {
+        $file = $this->getMetaDataFilePath($id);
+        if (!file_exists(dirname($file)))
+            FileHelper::createDirectory(dirname($file), $this->mode);
+        return file_put_contents($file, serialize($metadata->toArray())) !== false;
+    }
+
+    protected function loadMetaData($id)
+    {
+        $file = $this->getMetaDataFilePath($id);
+        if (file_exists($file)) {
+            $metadata = unserialize(file_get_contents($file));
+
+            return new MetaData($metadata);
+        }
+        return false;
     }
 
     public function execute($fn)
@@ -176,6 +246,8 @@ class GoogleDrive extends BaseAdapter
             ]);
         });
 
+        $this->saveHybrid($result->id, 'origin', $file->type, $file->name, file_get_contents($file->tempName), time());
+
         if ($response = $this->convert($result->id, 'text/plain')) {
             $has_preview = true;
             $text = preg_replace("/[_\W]+/", " ", $response->getResponseBody());
@@ -194,10 +266,55 @@ class GoogleDrive extends BaseAdapter
         ]);
     }
 
+    private function file_out($file_path = false, $file_name = false, $file_type = false, $headers = []) {
+        // we need to implement getModifiedDate from drive and if it changed refresh it
+        // but for this we must call file = $this->google_files_get($id) - is it ok for speed ?
+
+        if ($file_path &&
+            file_exists($file_path) &&
+            $file_name &&
+            $file_type) {
+
+            header('Content-Disposition: attachment; filename="' . $file_name . '"');
+            header("Content-Type: " . $file_type);
+            if (isset($headers) && is_array($headers) && !empty($headers)) {
+                foreach ($headers as $header) {
+                    header($header);
+                }
+            }
+
+            if ($stream = fopen($file_path, 'r')) {
+                while (!feof($stream)) {
+                    echo fread($stream, 8192);
+                }
+
+                return fclose($stream);
+            }
+            return false;
+        }
+        return false;
+    }
+
     public function download($id, $headers = [])
     {
+        if (($metadata = $this->loadMetaData($id)) && ($file = $this->getOriginFilePath($id))) {
+            if ($this->file_out($file, $metadata->origin_name, $metadata->origin_type, $headers)) {
+                return true;
+            }
+        }
+
         if (($file = $this->google_files_get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
             if ($response = $this->fetch($downloadUrl)) {
+
+                $time = $file->getModifiedDate() ?: $file->getCreatedDate();
+                $name = $id;
+                if ($file_name = $response->getResponseHeader('content-disposition')) {
+                    if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                        $name = $matches[1];
+                    }
+                }
+                $this->saveHybrid($id, 'origin', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+
                 header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
                 header('Content-Type:' . $response->getResponseHeader('content-type'));
                 if (isset($headers) && is_array($headers) && !empty($headers)) {
@@ -227,12 +344,41 @@ class GoogleDrive extends BaseAdapter
 
     public function preview($id, $type = 'application/pdf', $headers = [])
     {
+        if (($metadata = $this->loadMetaData($id)) && ($file = $this->getPreviewFilePath($id))) {
+            if ($this->file_out($file, $metadata->preview_name, $metadata->preview_type, $headers)) {
+                return true;
+            }
+        }
+
         if (($file = $this->google_files_get($id))) {
+            $time = $file->getModifiedDate() ?: $file->getCreatedDate();
+            $name = $id;
             // returning file itself if matches content-type, no conversion needed
             // returning file itself if image
             if (($file->mimeType == 'application/pdf' || preg_match('/^image/', $file->mimeType))) {
+
+                if ($downloadUrl = $file->getDownloadUrl()) {
+                    if ($response = $this->fetch($downloadUrl)) {
+                        if ($file_name = $response->getResponseHeader('content-disposition')) {
+                            if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                                $name = $matches[1];
+                            }
+                        }
+                        $this->saveHybrid($id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+                    }
+                }
+
                 return $this->download($id, $headers);
+
             } elseif ($response = $this->convert($id, $type)) {
+
+                if ($file_name = $response->getResponseHeader('content-disposition')) {
+                    if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                        $name = $matches[1];
+                    }
+                }
+                $this->saveHybrid($id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+
                 header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
                 header('Content-Type:' . $response->getResponseHeader('content-type'));
                 if (isset($headers) && is_array($headers) && !empty($headers)) {
@@ -240,7 +386,6 @@ class GoogleDrive extends BaseAdapter
                         header($header);
                     }
                 }
-
                 echo $response->getResponseBody();
                 return true;
             }

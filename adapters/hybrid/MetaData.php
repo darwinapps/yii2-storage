@@ -6,6 +6,8 @@ class MetaData extends \yii\base\Model
 {
     public $id;
 
+    public $gd_id;
+
     public $preview_name;
     public $preview_type;
     public $preview_time;

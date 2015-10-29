@@ -134,4 +134,8 @@ class FileSystem extends BaseAdapter
         $metadata->path = $dir;
         return rename($source, $target) && $this->saveMetaData($id, $metadata);
     }
+
+    public function sync($id) {
+        return false;
+    }
 }

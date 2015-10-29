@@ -61,7 +61,7 @@ class HybridGoogleDrive extends BaseAdapter
         return $this->getRealPath('origin' . DIRECTORY_SEPARATOR . substr($id, -3, 3) . DIRECTORY_SEPARATOR . $id);
     }
 
-    protected function saveHybrid($id = false, $type = 'preview', $file_type = '', $file_name = '', $file_content = '', $file_time = 0)
+    protected function saveHybrid($id = false, $gd_id = false, $type = 'preview', $file_type = '', $file_name = '', $file_content = '', $file_time = 0)
     {
         if ($id && $type && $file_type && $file_name && $file_content) {
             if (!in_array($type, ['preview', 'origin'])) {
@@ -77,6 +77,12 @@ class HybridGoogleDrive extends BaseAdapter
                 $type . '_time' => $file_time,
             ], false);
 
+            if ($gd_id) {
+                $metadata->setAttributes([
+                    'gd_id' => $gd_id,
+                ], false);
+            }
+
             $this->saveMetaData($id, $metadata);
 
             $file = ($type == 'preview') ? $this->getPreviewFilePath($id) : $this->getOriginFilePath($id);
@@ -85,8 +91,8 @@ class HybridGoogleDrive extends BaseAdapter
 
             return file_put_contents($file, $file_content) !== false;
         }
+        return false;
     }
-
 
     protected function getMetaDataFilePath($id)
     {
@@ -209,6 +215,17 @@ class HybridGoogleDrive extends BaseAdapter
      */
     public function move($id, $dir)
     {
+        if ($metadata = $this->loadMetaData($id)) {
+            if ($file = $this->getOriginFilePath($id)) {
+                if (file_exists($file)) {
+                    return $id;
+                }
+            }
+            if ($metadata->gd_id) {
+                $id = $metadata->gd_id;
+            }
+        }
+
         if (($file = $this->google_files_get($id)) && ($parent = $this->createDirectoryRecursive($dir))) {
             $file->setParents([$parent]);
             $file = $this->execute(function () use ($id, $file) {
@@ -219,51 +236,120 @@ class HybridGoogleDrive extends BaseAdapter
         return false;
     }
 
+
     /**
      * @inheritdoc
      */
     public function put(\yii\web\UploadedFile $file, $path = null)
     {
+        $id = $this->generate_unique_id();
+        $hb = $this->saveHybrid($id, false, 'origin', $file->type, $file->name, file_get_contents($file->tempName), time());
+        if ($hb) {
+            $metadata = $this->loadMetaData($id);
+            $metadata->setAttributes([
+                'gd_id' => false,
+            ], false);
+            $this->saveMetaData($id, $metadata);
+
+            return new File([
+                'id' => $id,
+                'name' => $file->name,
+                'size' => $file->size,
+                'type' => $file->type,
+                'has_preview' => false,
+                'text' => '',
+            ]);
+        }
+        return false;
+    }
+
+    public function sync($id) {
+        if ($metadata = $this->loadMetaData($id)) {
+            if ($file = $this->getOriginFilePath($id)) {
+                if (file_exists($file)) {
+                    if (!$metadata->gd_id) {
+                        $content = file_get_contents($file);
+                        $result = $this->_put($metadata->origin_name, $metadata->origin_type, $content);
+                        $gd_id = $result->id;
+                        $metadata->gd_id = $gd_id;
+                        $this->saveMetaData($id, $metadata);
+
+                        if ($response = $this->convert($result->id, 'text/plain')) {
+                            $has_preview = true;
+                            $text = preg_replace("/[_\W]+/", " ", $response->getResponseBody());
+                        } else {
+                            $has_preview = false;
+                            $text = '';
+                        }
+
+                        $result_file = new File([
+                            'id' => $id,
+                            'name' => $metadata->origin_name,
+                            'size' => strlen($content),
+                            'type' => $metadata->origin_type,
+                            'has_preview' => $has_preview,
+                            'text' => $text,
+                        ]);
+
+
+                        if ($gd_id) {
+                            if (($file = $this->google_files_get($gd_id))) {
+                                $time = $file->getModifiedDate() ?: $file->getCreatedDate();
+                                $name = $id;
+                                if (($file->mimeType == 'application/pdf' || preg_match('/^image/', $file->mimeType))) {
+                                    if ($downloadUrl = $file->getDownloadUrl()) {
+                                        if ($response = $this->fetch($downloadUrl)) {
+                                            if ($file_name = $response->getResponseHeader('content-disposition')) {
+                                                if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                                                    $name = $matches[1];
+                                                }
+                                            }
+                                            $result_file->has_preview = $this->saveHybrid($id, $gd_id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+                                        }
+                                    }
+                                } elseif ($response = $this->convert($gd_id, 'application/pdf')) {
+
+                                    if ($file_name = $response->getResponseHeader('content-disposition')) {
+                                        if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                                            $name = $matches[1];
+                                        }
+                                    }
+                                    $type = $response->getResponseHeader('content-type');
+                                    $content = $response->getResponseBody();
+                                    $result_file->has_preview = $this->saveHybrid($id, $gd_id, 'preview', $type, $name, $content, $time);
+                                }
+                            }
+                        }
+
+                        return $result_file;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private function _put($name, $type, $content, $path = null)
+    {
         $parent = null;
+        if ($path != null) $parent = $this->createDirectoryRecursive($path);
 
-        if ($path != null)
-            $parent = $this->createDirectoryRecursive($path);
-
-        $mimeType = FileHelper::getMimeTypeByExtension($file->name) ? : $file->type;
+        $mimeType = FileHelper::getMimeTypeByExtension($name) ? : $type;
         $driveFile = new \Google_Service_Drive_DriveFile([
-            'title' => $file->name,
+            'title' => $name,
             'mimeType' => $mimeType
         ]);
 
-        if ($parent) {
-            $driveFile->setParents([$parent]);
-        }
+        if ($parent) $driveFile->setParents([$parent]);
 
-        $result = $this->execute(function () use ($file, $driveFile) {
+        $result = $this->execute(function () use ($content, $driveFile) {
             return $this->getService()->files->insert($driveFile, [
-                'data' => file_get_contents($file->tempName),
+                'data' => $content,
                 'uploadType' => 'media',
             ]);
         });
 
-        $this->saveHybrid($result->id, 'origin', $file->type, $file->name, file_get_contents($file->tempName), time());
-
-        if ($response = $this->convert($result->id, 'text/plain')) {
-            $has_preview = true;
-            $text = preg_replace("/[_\W]+/", " ", $response->getResponseBody());
-        } else {
-            $has_preview = false;
-            $text = '';
-        }
-
-        return new File([
-            'id' => $result->id,
-            'name' => $file->name,
-            'size' => $file->size,
-            'type' => $file->type,
-            'has_preview' => $has_preview,
-            'text' => $text,
-        ]);
+        return $result;
     }
 
     private function file_out($file_path = false, $file_name = false, $file_type = false, $headers = []) {
@@ -297,15 +383,34 @@ class HybridGoogleDrive extends BaseAdapter
 
     public function download($id, $headers = [])
     {
-        if (($metadata = $this->loadMetaData($id)) && ($file = $this->getOriginFilePath($id))) {
-            if ($this->file_out($file, $metadata->origin_name, $metadata->origin_type, $headers)) {
-                return true;
+        $gd_id = false;
+        if ($metadata = $this->loadMetaData($id)) {
+            if ($file = $this->getOriginFilePath($id)) {
+
+                if (file_exists($file) && !$metadata->gd_id) {
+                    $result = $this->_put($metadata->origin_name, $metadata->origin_type, file_get_contents($file));
+                    $gd_id = $result->id;
+
+                    $metadata->gd_id = $gd_id;
+                    $this->saveMetaData($id, $metadata);
+                }
+
+                if ($this->file_out($file, $metadata->origin_name, $metadata->origin_type, $headers)) {
+                    return true;
+                }
+            }
+            if ($metadata->gd_id) {
+                $gd_id = $metadata->gd_id;
             }
         }
+        if (!$gd_id) {
+            $gd_id = $id;
+        }
 
-        if (($file = $this->google_files_get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
+        if (($file = $this->google_files_get($gd_id)) && ($downloadUrl = $file->getDownloadUrl())) {
             if ($response = $this->fetch($downloadUrl)) {
-
+                $type = $response->getResponseHeader('content-type');
+                $content = $response->getResponseBody();
                 $time = $file->getModifiedDate() ?: $file->getCreatedDate();
                 $name = $id;
                 if ($file_name = $response->getResponseHeader('content-disposition')) {
@@ -313,17 +418,17 @@ class HybridGoogleDrive extends BaseAdapter
                         $name = $matches[1];
                     }
                 }
-                $this->saveHybrid($id, 'origin', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+                $this->saveHybrid($id, $gd_id, 'origin', $type, $name, $content, $time);
 
                 header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
-                header('Content-Type:' . $response->getResponseHeader('content-type'));
+                header('Content-Type:' . $type);
                 if (isset($headers) && is_array($headers) && !empty($headers)) {
                     foreach ($headers as $header) {
                         header($header);
                     }
                 }
 
-                echo $response->getResponseBody();
+                echo $content;
                 return true;
             }
         }
@@ -333,9 +438,36 @@ class HybridGoogleDrive extends BaseAdapter
 
     public function get($id)
     {
-        if (($file = $this->google_files_get($id)) && ($downloadUrl = $file->getDownloadUrl())) {
+        $gd_id = false;
+        if (($metadata = $this->loadMetaData($id)) && ($file = $this->getOriginFilePath($id))) {
+            if (file_exists($file))  {
+                if ($file_content = file_get_contents($file)) {
+                    return $file_content;
+                }
+            }
+            if ($metadata->gd_id) {
+                $gd_id = $metadata->gd_id;
+            }
+        }
+        if (!$gd_id) {
+            $gd_id = $id;
+        }
+
+        if (($file = $this->google_files_get($gd_id)) && ($downloadUrl = $file->getDownloadUrl())) {
             if ($response = $this->fetch($downloadUrl)) {
-                return $response->getResponseBody();
+
+                $time = $file->getModifiedDate() ?: $file->getCreatedDate();
+                $type = $response->getResponseHeader('content-type');
+                $content = $response->getResponseBody();
+                $name = $id;
+                if ($file_name = $response->getResponseHeader('content-disposition')) {
+                    if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
+                        $name = $matches[1];
+                    }
+                }
+                $this->saveHybrid($id, $gd_id, 'origin', $type, $name, $content, $time);
+
+                return $content;
             }
         }
 
@@ -344,19 +476,37 @@ class HybridGoogleDrive extends BaseAdapter
 
     public function preview($id, $type = 'application/pdf', $headers = [])
     {
-        if (($metadata = $this->loadMetaData($id)) && ($file = $this->getPreviewFilePath($id))) {
-            if ($this->file_out($file, $metadata->preview_name, $metadata->preview_type, $headers)) {
-                return true;
+        $gd_id = false;
+        if ($metadata = $this->loadMetaData($id)) {
+            if ($file = $this->getPreviewFilePath($id)) {
+                if ($this->file_out($file, $metadata->preview_name, $metadata->preview_type, $headers)) {
+                    return true;
+                }
+            }
+
+            if ($metadata->gd_id) {
+                $gd_id = $metadata->gd_id;
+            } else {
+                if ($file = $this->getOriginFilePath($id)) {
+                    if (file_exists($file)) {
+                        $result = $this->_put($metadata->origin_name, $metadata->origin_type, file_get_contents($file));
+                        $gd_id = $result->id;
+
+                    }
+                }
             }
         }
+        // if no preview & no origin then seems we have gd_id in id
+        if (!$gd_id) {
+            $gd_id = $id;
+        }
 
-        if (($file = $this->google_files_get($id))) {
+        if (($file = $this->google_files_get($gd_id))) {
             $time = $file->getModifiedDate() ?: $file->getCreatedDate();
             $name = $id;
             // returning file itself if matches content-type, no conversion needed
             // returning file itself if image
             if (($file->mimeType == 'application/pdf' || preg_match('/^image/', $file->mimeType))) {
-
                 if ($downloadUrl = $file->getDownloadUrl()) {
                     if ($response = $this->fetch($downloadUrl)) {
                         if ($file_name = $response->getResponseHeader('content-disposition')) {
@@ -364,29 +514,31 @@ class HybridGoogleDrive extends BaseAdapter
                                 $name = $matches[1];
                             }
                         }
-                        $this->saveHybrid($id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+                        $this->saveHybrid($id, $gd_id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
                     }
                 }
 
                 return $this->download($id, $headers);
 
-            } elseif ($response = $this->convert($id, $type)) {
+            } elseif ($response = $this->convert($gd_id, $type)) {
 
                 if ($file_name = $response->getResponseHeader('content-disposition')) {
                     if (preg_match('/filename="(.*)"/', $file_name, $matches)) {
                         $name = $matches[1];
                     }
                 }
-                $this->saveHybrid($id, 'preview', $response->getResponseHeader('content-type'), $name, $response->getResponseBody(), $time);
+                $type = $response->getResponseHeader('content-type');
+                $content = $response->getResponseBody();
+                $this->saveHybrid($id, $gd_id, 'preview', $type, $name, $content, $time);
 
                 header('Content-Disposition:' . $response->getResponseHeader('content-disposition'));
-                header('Content-Type:' . $response->getResponseHeader('content-type'));
+                header('Content-Type:' . $type);
                 if (isset($headers) && is_array($headers) && !empty($headers)) {
                     foreach ($headers as $header) {
                         header($header);
                     }
                 }
-                echo $response->getResponseBody();
+                echo $content;
                 return true;
             }
         }

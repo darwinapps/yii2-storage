@@ -75,4 +75,10 @@ class Storage extends \yii\base\Component
     {
         return $this->getAdapter()->get($id);
     }
+
+    public function sync($id)
+    {
+        return $this->getAdapter()->sync($id);
+    }
+
 }

@@ -67,4 +67,8 @@ class BaseAdapter extends \yii\base\Component implements \darwinapps\storage\int
         throw new NotSupportedException();
     }
 
+    public function sync($id) {
+        throw new NotSupportedException();
+    }
+
 }

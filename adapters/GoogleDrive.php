@@ -325,4 +325,8 @@ class GoogleDrive extends BaseAdapter
         }
         return false;
     }
+
+    public function sync($id) {
+        return false;
+    }
 }

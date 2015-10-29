@@ -28,6 +28,13 @@ interface StorageInterface
     public function get($id);
 
     /**
+     * Synchronize file in the storage
+     * @param string $id
+     * @return bool $success
+     */
+    public function sync($id);
+
+    /**
      * Downloads converted version of the file from the storage
      * @param string $id
      * @param string $type
